@@ -1,0 +1,94 @@
+service: url-shortener
+
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: ap-southeast-1  # Change to your preferred region
+  stage: ${opt:stage, 'dev'}
+
+  environment:
+    URLS_TABLE: ${self:service}-urls-${self:provider.stage}
+    BASE_URL: ${self:custom.baseUrl.${self:provider.stage}}
+
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:Query
+            - dynamodb:Scan
+          Resource:
+            - !GetAtt UrlsTable.Arn
+            - !Sub "${UrlsTable.Arn}/index/*"
+
+custom:
+  baseUrl:
+    dev: https://${self:provider.stage}-${self:service}.execute-api.${self:provider.region}.amazonaws.com
+    prod: https://short.navindalc.app  # Custom domain
+
+  serverless-offline:
+    httpPort: 3001
+
+functions:
+  createUrl:
+    handler: src/handlers/createUrl.handler
+    events:
+      - httpApi:
+          path: /urls
+          method: post
+
+  redirect:
+    handler: src/handlers/redirect.handler
+    events:
+      - httpApi:
+          path: /{shortCode}
+          method: get
+
+  getStats:
+    handler: src/handlers/getStats.handler
+    events:
+      - httpApi:
+          path: /urls/{shortCode}/stats
+          method: get
+
+  listUrls:
+    handler: src/handlers/listUrls.handler
+    events:
+      - httpApi:
+          path: /urls
+          method: get
+
+resources:
+  Resources:
+    UrlsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.URLS_TABLE}
+        BillingMode: PAY_PER_REQUEST  # No provisioned capacity = cheaper for low traffic
+        AttributeDefinitions:
+          - AttributeName: shortCode
+            AttributeType: S
+          - AttributeName: createdAt
+            AttributeType: N
+        KeySchema:
+          - AttributeName: shortCode
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: createdAt-index
+            KeySchema:
+              - AttributeName: shortCode
+                KeyType: HASH
+              - AttributeName: createdAt
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+
+  Outputs:
+    ApiUrl:
+      Description: API Gateway URL
+      Value: !Sub "https://${HttpApi}.execute-api.${self:provider.region}.amazonaws.com"
