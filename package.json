@@ -1,0 +1,21 @@
+{
+  "name": "url-shortener-serverless",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "serverless offline",
+    "deploy": "serverless deploy",
+    "deploy:prod": "serverless deploy --stage prod",
+    "remove": "serverless remove"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.982.0",
+    "@aws-sdk/lib-dynamodb": "^3.982.0",
+    "dotenv": "^17.2.3",
+    "nanoid": "^5.1.6"
+  },
+  "devDependencies": {
+    "serverless": "^4.31.2",
+    "serverless-offline": "^14.4.0"
+  }
+}
