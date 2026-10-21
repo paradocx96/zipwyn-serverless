@@ -1,21 +1,31 @@
 {
-  "name": "url-shortener-serverless",
+  "name": "zipwyn-serverless",
   "version": "1.0.0",
+  "description": "Serverless backend for Zipwyn",
+  "private": true,
   "type": "module",
-  "scripts": {
-    "dev": "serverless offline",
-    "deploy": "serverless deploy",
-    "deploy:prod": "serverless deploy --stage prod",
-    "remove": "serverless remove"
+  "license": "UNLICENSED",
+  "author": "Navinda Chandrasiri (https://github.com/paradocx96)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/paradocx96/zipwyn-serverless.git"
   },
-  "dependencies": {
-    "@aws-sdk/client-dynamodb": "^3.982.0",
-    "@aws-sdk/lib-dynamodb": "^3.982.0",
-    "dotenv": "^17.2.3",
-    "nanoid": "^5.1.6"
+  "engines": {
+    "node": ">=22.12"
+  },
+  "packageManager": "pnpm@12.14.0",
+  "scripts": {
+    "dev": "node scripts/dev-server.mjs",
+    "dev:watch": "node --watch scripts/dev-server.mjs",
+    "db:start": "docker compose up -d dynamodb-local",
+    "db:stop": "docker compose down",
+    "test": "node --test",
+    "migrate": "node scripts/migrate-table.mjs",
+    "tf:fmt": "terraform -chdir=infra/terraform fmt -recursive",
+    "tf:validate": "terraform -chdir=infra/terraform init -backend=false && terraform -chdir=infra/terraform validate"
   },
   "devDependencies": {
-    "serverless": "^4.31.2",
-    "serverless-offline": "^14.4.0"
+    "@aws-sdk/client-dynamodb": "^3.982.0",
+    "@aws-sdk/lib-dynamodb": "^3.982.0"
   }
 }
