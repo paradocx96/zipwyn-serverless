@@ -1,99 +1,102 @@
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, PutCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
+import {PutCommand} from '@aws-sdk/lib-dynamodb';
+import {validateCustomCode, validateTargetUrl} from '../lib/validation.mjs';
+import {errorResponse, json, parseJsonBody} from '../lib/http.mjs';
+import {getBaseUrl, getTableName} from '../lib/config.mjs';
+import {generateShortCode} from '../lib/shortcode.mjs';
+import {requireApiKey} from '../lib/auth.mjs';
+import {docClient} from '../lib/dynamodb.mjs';
 
-const client = new DynamoDBClient({});
-const docClient = DynamoDBDocumentClient.from(client);
-const TABLE_NAME = 'url-shortener-urls';
 
-// Simple nanoid alternative
-const generateShortCode = () => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    let result = '';
-    for (let i = 0; i < 7; i++) {
-        result += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return result;
+const MAX_GENERATION_ATTEMPTS = 5;
+
+const isConditionalFailure = (error) => error?.name === 'ConditionalCheckFailedException';
+
+const hostOf = (origin) => {
+  try {
+    return new URL(origin).host.toLowerCase();
+  } catch {
+    return null;
+  }
 };
 
-const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Content-Type': 'application/json',
-};
+/** Inserts a link; throws ConditionalCheckFailedException if the code is taken. */
+const insertLink = (item) =>
+  docClient.send(
+    new PutCommand({
+      TableName: getTableName(),
+      Item: item,
+      ConditionExpression: 'attribute_not_exists(shortCode)',
+    }),
+  );
 
+/**
+ * POST /urls
+ * Body: { "url": "https://...", "customCode": "optional-vanity-code" }
+ */
 export const handler = async (event) => {
-    try {
-        const body = JSON.parse(event.body || '{}');
-        const { url, customCode } = body;
+  const denied = requireApiKey(event);
+  if (denied) return denied;
 
-        if (!url) {
-            return {
-                statusCode: 400,
-                headers: corsHeaders,
-                body: JSON.stringify({ error: 'URL is required' }),
-            };
-        }
-
-        // Validate URL
-        try {
-            new URL(url);
-        } catch {
-            return {
-                statusCode: 400,
-                headers: corsHeaders,
-                body: JSON.stringify({ error: 'Invalid URL format' }),
-            };
-        }
-
-        let shortCode = customCode || generateShortCode();
-
-        // Check if custom code exists
-        if (customCode) {
-            const existing = await docClient.send(
-                new GetCommand({ TableName: TABLE_NAME, Key: { shortCode } })
-            );
-            if (existing.Item) {
-                return {
-                    statusCode: 409,
-                    headers: corsHeaders,
-                    body: JSON.stringify({ error: 'Short code already exists' }),
-                };
-            }
-        }
-
-        const item = {
-            shortCode,
-            originalUrl: url,
-            createdAt: Date.now(),
-            clicks: 0,
-        };
-
-        await docClient.send(
-            new PutCommand({
-                TableName: TABLE_NAME,
-                Item: item,
-                ConditionExpression: 'attribute_not_exists(shortCode)',
-            })
-        );
-
-        const baseUrl = process.env.BASE_URL || `https://${event.requestContext.domainName}`;
-
-        return {
-            statusCode: 201,
-            headers: corsHeaders,
-            body: JSON.stringify({
-                shortCode,
-                shortUrl: `${baseUrl}/${shortCode}`,
-                originalUrl: url,
-                createdAt: item.createdAt,
-            }),
-        };
-    } catch (error) {
-        console.error('Error:', error);
-        return {
-            statusCode: 500,
-            headers: corsHeaders,
-            body: JSON.stringify({ error: 'Internal server error' }),
-        };
+  try {
+    const body = parseJsonBody(event);
+    if (!body) {
+      return errorResponse(400, 'Request body must be a valid JSON object');
     }
+
+    const baseUrl = getBaseUrl(event);
+    const blockedHost = hostOf(baseUrl);
+    const target = validateTargetUrl(body.url, {blockedHosts: blockedHost ? [blockedHost] : []});
+    if (target.error) {
+      return errorResponse(400, target.error);
+    }
+
+    const {customCode} = body;
+    const wantsCustomCode = customCode !== undefined && customCode !== null && customCode !== '';
+
+    const buildItem = (shortCode) => ({
+      shortCode,
+      originalUrl: target.url,
+      createdAt: Date.now(),
+      clicks: 0,
+    });
+    const created = (item) =>
+      json(201, {
+        shortCode: item.shortCode,
+        shortUrl: `${baseUrl}/${item.shortCode}`,
+        originalUrl: item.originalUrl,
+        createdAt: item.createdAt,
+      });
+
+    if (wantsCustomCode) {
+      const checked = validateCustomCode(customCode);
+      if (checked.error) {
+        return errorResponse(400, checked.error);
+      }
+      const item = buildItem(checked.code);
+      try {
+        await insertLink(item);
+      } catch (error) {
+        if (isConditionalFailure(error)) {
+          return errorResponse(409, 'Short code already exists');
+        }
+        throw error;
+      }
+      return created(item);
+    }
+
+    // Random code: retry on the (very unlikely) collision.
+    for (let attempt = 0; attempt < MAX_GENERATION_ATTEMPTS; attempt += 1) {
+      const item = buildItem(generateShortCode());
+      try {
+        await insertLink(item);
+        return created(item);
+      } catch (error) {
+        if (!isConditionalFailure(error)) throw error;
+      }
+    }
+    return errorResponse(503, 'Could not generate a unique short code, please retry');
+  } catch (error) {
+    console.error('Error creating link:', error);
+    return errorResponse(500, 'Internal server error');
+  }
 };

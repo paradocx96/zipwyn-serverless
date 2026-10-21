@@ -1,20 +1,37 @@
-# IDEs
-.vscode/
-.idea/
-
-# Node modules
+# Dependencies
 node_modules/
 
-# Build output
-dist/
+# Environment files (never commit real secrets)
+.env
+.env.*
+!.env.example
 
 # Logs
-logs/*.log
+logs/
+*.log
 
-# Environment variables
-.env
-
-# OS files
+# IDEs / OS
+.vscode/
+.idea/
 .DS_Store
 Thumbs.db
 
+# Build output
+dist/
+coverage/
+
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+*.tfplan
+tfplan
+*tfplan*
+backend.hcl
+infra/terraform/*.zip
+# Keep the provider lock file under version control: do NOT ignore .terraform.lock.hcl
