@@ -1,0 +1,16 @@
+# Local infrastructure for development. Only DynamoDB Local is needed;
+# the API itself runs with `pnpm run dev`.
+services:
+  dynamodb-local:
+    image: amazon/dynamodb-local:latest
+    container_name: zipwyn-dynamodb-local
+    command: ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-dbPath", "/home/dynamodblocal/data"]
+    user: root
+    ports:
+      - "8000:8000"
+    volumes:
+      - zipwyn-dynamodb-data:/home/dynamodblocal/data
+    restart: unless-stopped
+
+volumes:
+  zipwyn-dynamodb-data:
