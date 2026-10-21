@@ -1,0 +1,6 @@
+# Copy to backend.hcl (git-ignored) and use it with: terraform init -backend-config=backend.hcl
+bucket       = "zipwyn-terraform-state-<AWS_ACCOUNT_ID>"
+key          = "zipwyn-serverless/terraform.tfstate"
+region       = "ap-southeast-1"
+encrypt      = true
+use_lockfile = true

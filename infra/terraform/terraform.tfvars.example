@@ -1,0 +1,27 @@
+# Copy to terraform.tfvars (git-ignored) and adjust.
+#   cp terraform.tfvars.example terraform.tfvars
+
+aws_region = "ap-southeast-1"
+
+# Domains (DNS is managed at Name.com)
+root_domain        = "navindalc.app"
+redirect_subdomain = "zip"        # https://zip.navindalc.app/<code>
+api_subdomain      = "zipwyn-api" # https://zipwyn-api.navindalc.app
+frontend_subdomain = "zipwyn"     # https://zipwyn.navindalc.app (Zipwyn web app)
+
+# Step 1: leave false. Step 2 (after the ACM validation CNAMEs exist): set to true.
+enable_custom_domains = false
+
+# Optional: keep previously shared links alive on a legacy domain.
+# redirect_extra_domains = ["short.navindalc.app"]
+
+# Recommended: email address for CloudWatch alarms (confirm the AWS email afterwards).
+# alarm_email = "you@example.com"
+
+# Recommended: require `x-api-key` on create/list/stats.
+# Keep it HERE (this file is git-ignored) so a later `terraform apply` never drops it by accident.
+# Generate one with:  openssl rand -hex 32
+# management_api_key = "paste-generated-key-here"
+
+# Optional: after the custom domains work, make them the only way in.
+# disable_default_endpoints = true

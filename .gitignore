@@ -31,6 +31,7 @@ crash.*.log
 !*.tfvars.example
 *.tfplan
 tfplan
+*tfplan*
 backend.hcl
 infra/terraform/*.zip
 # Keep the provider lock file under version control: do NOT ignore .terraform.lock.hcl
